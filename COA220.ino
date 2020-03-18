@@ -12,6 +12,8 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
+boolean DEV_MODE= true; // this should be false when the product is not in development
+
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 uint8_t buttons;
 
@@ -115,11 +117,16 @@ void setRandomPattern(){
 }
 
 void showSequence(){
-  Serial.println("showing new sequence");
   lcd.clear();
   lcd.home();
   for (int i = 0; i < seqLength; i++){
     lcd.write(seq[i]->character);
+    if (DEV_MODE){
+      Serial.print(seq[i]->buttonName + " ");
+    }
+  }
+  if (DEV_MODE){
+    Serial.println();  
   }
   delay(showTime);
   lcd.clear();
@@ -128,6 +135,8 @@ void showSequence(){
 boolean makeGuess(){
   if (seq[seqPosition]->button & guess){ // if the guess is the same as the element that the user is trying to guess
     guess = 0;
+    lcd.setCursor(seqPosition, 0);
+    lcd.write(seq[seqPosition]->character);
     return true;
   }
   else{
@@ -137,16 +146,6 @@ boolean makeGuess(){
 }
 
 void resetGame(){
-  int score = seqLength - 2;
-  lcd.setBacklight(RED);
-  lcd.clear();
-  lcd.home();
-  lcd.print("GAME OVER");
-  lcd.setCursor(0,1);
-  lcd.print("SCORE: ");
-  lcd.print(score);
-  delay(showTime);
-  lcd.setBacklight(WHITE);
   seqLength = startSeqLength;
   seqPosition = 0;
   m = 2;
@@ -165,9 +164,6 @@ boolean levelUp(){
   }
   seqPosition = 0;
   if (seqLength > 10){
-    lcd.clear();
-    lcd.home();
-    lcd.print("YOU WIN");
     return false;
   }
   else{
@@ -193,6 +189,27 @@ void setup() {
   seqLength = startSeqLength;
 }
 
+void win(){
+  lcd.clear();
+  lcd.home();
+  lcd.print("YOU WIN");
+  for (int i = 0; i < 3; i++){ // cycle through the colours
+    lcd.setBacklight(RED);
+    delay(50);
+    lcd.setBacklight(YELLOW);
+    delay(50);
+    lcd.setBacklight(GREEN);
+    delay(50);
+    lcd.setBacklight(TEAL);
+    delay(50);
+    lcd.setBacklight(BLUE);
+    delay(50);
+    lcd.setBacklight(VIOLET);
+    delay(50);
+    lcd.setBacklight(WHITE); 
+  }
+}
+
 void loop() {
   buttons = lcd.readButtons();
   if (state == "show_next_level"){
@@ -216,20 +233,39 @@ void loop() {
             return;
           }
           else{
-            state = "completed_game";
+            win();
+            resetGame();
+            state = "show_next_level";
             return;
           }
         }
       }
-      else{
+      else {
+        Serial.println("finish");
+        int score = seqLength - 2;
+        lcd.setBacklight(RED);
+        lcd.clear();
+        lcd.home();
+        lcd.print("GAME OVER");
+        lcd.setCursor(0,1);
+        lcd.print("SCORE: ");
+        lcd.print(score);
+        delay(showTime);
+        lcd.setBacklight(WHITE);
         resetGame();
         state = "show_next_level";
-        return;  // N
+        return;  // Stop the cycle to stop the state frmo being set to waiting for another guess 
       }
       state = "waiting_for_guess";
     }
   }
   else{
-    Serial.print("state: " + state);
+    Serial.println("Unknown state: " + state);
+    lcd.clear();
+    lcd.home();
+    lcd.print("ERROR");
+    lcd.setCursor(0,1);
+    lcd.print("Check Serial");
+    exit(0);
   }
 }
