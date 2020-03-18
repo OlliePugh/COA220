@@ -98,12 +98,13 @@ Button downButton (BUTTON_DOWN, "down");
 Button* gameButtons[] = {&leftButton, &rightButton, &upButton, &downButton};  // array of pointers to 
 Button* seq[10]; // an array that points to different buttons in the gameButtons array
 
-int startSeqLength = 2;
+int startSeqLength = 10;
 
 int m = 2;  // how many different buttons can be used in the sequence
 int seqLength;  // how many moves the sequence is
 int seqPosition = 0;  // this is the index that the player is currently trying to remember
 uint8_t guess;  // the users current guess
+uint8_t lastCyclePress;
 
 int showTime = 1000;
 String state;
@@ -132,8 +133,8 @@ void showSequence(){
   lcd.clear();
 }
 
-boolean makeGuess(){
-  if (seq[seqPosition]->button & guess){ // if the guess is the same as the element that the user is trying to guess
+boolean makeGuess(){  // SOMETHING ABOUT THESE INDEXES BEING ONE TOO FAR TO THE RIGHT
+  if (seq[seqPosition]->button & guess){ // if the guess is correct
     guess = 0;
     lcd.setCursor(seqPosition, 0);
     lcd.write(seq[seqPosition]->character);
@@ -152,41 +153,31 @@ void resetGame(){
 }
 
 boolean levelUp(){
-  lcd.setBacklight(GREEN);
-  lcd.clear();
-  lcd.home();
-  lcd.print("LEVEL UP");
-  delay(showTime);
-  lcd.setBacklight(WHITE);
-  seqLength++;
-  if (seqLength % 3 == 0 && (m+1 <= 4)){
-    m++;
-  }
   seqPosition = 0;
-  if (seqLength > 10){
+  if (++seqLength > 10){
     return false;
   }
   else{
+    lcd.setBacklight(GREEN);
+    lcd.clear();
+    lcd.home();
+    lcd.print("LEVEL UP");
+    delay(showTime);
+    lcd.setBacklight(WHITE);
+    if (seqLength % 3 == 0 && (m+1 <= 4)){
+      m++;
+    }
     return true;
   }
 }
 
-void setup() {
-  randomSeed(analogRead(0));
-  Serial.begin(9600);
-  
-  lcd.begin(16, 2);
-  lcd.setBacklight(WHITE);
-
-  //Create custom chars for the LCD Screen
-  
-  leftButton.setChar(0, leftArrow); 
-  rightButton.setChar(1, rightArrow);
-  upButton.setChar(2, upArrow);
-  downButton.setChar(3, downArrow);
-
-  state = "show_next_level";
-  seqLength = startSeqLength;
+void gotoMenu(){
+  state = "menu_set_length";
+  lcd.clear();
+  lcd.home();
+  lcd.print("START LENGTH:");
+  lcd.setCursor(0,1);
+  lcd.print(String(startSeqLength));
 }
 
 void win(){
@@ -210,9 +201,51 @@ void win(){
   }
 }
 
+void setup() {
+  randomSeed(analogRead(0));
+  Serial.begin(9600);
+  
+  lcd.begin(16, 2);
+  lcd.setBacklight(WHITE);
+
+  //Create custom chars for the LCD Screen
+  
+  leftButton.setChar(0, leftArrow); 
+  rightButton.setChar(1, rightArrow);
+  upButton.setChar(2, upArrow);
+  downButton.setChar(3, downArrow);
+
+  seqLength = startSeqLength;
+  gotoMenu();
+  
+}
+
 void loop() {
   buttons = lcd.readButtons();
-  if (state == "show_next_level"){
+  if (state == "menu_set_length"){
+    if (upButton.pressed() && startSeqLength < 5){
+      startSeqLength++;
+      state = "menu_awaiting_length_release";
+    }
+    else if (downButton.pressed() && startSeqLength > 1){
+      startSeqLength--;
+      state = "menu_awaiting_length_release";
+    }
+    else if (rightButton.pressed()){
+      seqLength = startSeqLength;
+      state = "show_next_level";
+    }
+  }
+  else if (state == "menu_awaiting_length_release"){
+    if (buttons == 0){  // if the user has let go of the button
+      lcd.setCursor(0,1);
+      lcd.print("  ");
+      lcd.setCursor(0,1);
+      lcd.print(String(startSeqLength));
+      state = "menu_set_length"; 
+    }
+  }
+  else if (state == "show_next_level"){
     setRandomPattern();  // generate the first random patern
     showSequence();
     state = "waiting_for_guess";
@@ -226,7 +259,7 @@ void loop() {
   else if (state == "waiting_for_button_release"){
     if (buttons == 0){
       if (makeGuess()){ // if the guess was correct
-        seqPosition += 1;
+        seqPosition++;
         if (seqPosition > seqLength-1){ // the user has entered all correctly, level up
           if(levelUp()){
             state = "show_next_level"; 
@@ -235,14 +268,14 @@ void loop() {
           else{
             win();
             resetGame();
-            state = "show_next_level";
+            gotoMenu();
             return;
           }
         }
       }
       else {
         Serial.println("finish");
-        int score = seqLength - 2;
+        int score = seqLength - startSeqLength;
         lcd.setBacklight(RED);
         lcd.clear();
         lcd.home();
@@ -253,7 +286,7 @@ void loop() {
         delay(showTime);
         lcd.setBacklight(WHITE);
         resetGame();
-        state = "show_next_level";
+        gotoMenu();
         return;  // Stop the cycle to stop the state frmo being set to waiting for another guess 
       }
       state = "waiting_for_guess";
@@ -266,6 +299,6 @@ void loop() {
     lcd.print("ERROR");
     lcd.setCursor(0,1);
     lcd.print("Check Serial");
-    exit(0);
+    exit(0); 
   }
 }
