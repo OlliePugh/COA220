@@ -46,6 +46,8 @@ class Button {  // a class for containing button methods
     }
 };
 
+// Custom Char bytes for arrows
+
 byte upArrow[] = {
   B00000,
   B00100,
@@ -98,13 +100,17 @@ Button downButton (BUTTON_DOWN, "down");
 Button* gameButtons[] = {&leftButton, &rightButton, &upButton, &downButton};  // array of pointers to 
 Button* seq[10]; // an array that points to different buttons in the gameButtons array
 
-int startSeqLength = 10;
-
+int startSeqLength = 2;
 int m = 2;  // how many different buttons can be used in the sequence
+int guessTime = 2; // how many seconds the user has to make a guess
+
 int seqLength;  // how many moves the sequence is
 int seqPosition = 0;  // this is the index that the player is currently trying to remember
+
+
+unsigned long guessStart; // this will store the millis of a guess start
+unsigned long currentTime; // this will store the current value of millis each loop
 uint8_t guess;  // the users current guess
-uint8_t lastCyclePress;
 
 int showTime = 1000;
 String state;
@@ -201,6 +207,22 @@ void win(){
   }
 }
 
+void gameOver(){
+  Serial.println("finish");
+  int score = seqLength - startSeqLength;
+  lcd.setBacklight(RED);
+  lcd.clear();
+  lcd.home();
+  lcd.print("GAME OVER");
+  lcd.setCursor(0,1);
+  lcd.print("SCORE: ");
+  lcd.print(score);
+  delay(showTime);
+  lcd.setBacklight(WHITE);
+  resetGame();  // reset all the values
+  gotoMenu();  // go back to the menu
+}
+
 void setup() {
   randomSeed(analogRead(0));
   Serial.begin(9600);
@@ -222,6 +244,8 @@ void setup() {
 
 void loop() {
   buttons = lcd.readButtons();
+  currentTime = millis();
+ // Serial.println(currentTime);
   if (state == "menu_set_length"){
     if (upButton.pressed() && startSeqLength < 5){
       startSeqLength++;
@@ -249,14 +273,20 @@ void loop() {
     setRandomPattern();  // generate the first random patern
     showSequence();
     state = "waiting_for_guess";
+    guessStart = millis();  // start the timer
   }
   else if (state == "waiting_for_guess"){
+    Serial.println(currentTime - guessStart);
+    if (currentTime - guessStart >= ((guessTime)*1000)){
+      gameOver();
+    }
     if (buttons >1){ // a button that isnt select has been pressed
       guess = buttons;
       state = "waiting_for_button_release";
     }
   } 
   else if (state == "waiting_for_button_release"){
+    guessStart = millis();  // reset the timer
     if (buttons == 0){
       if (makeGuess()){ // if the guess was correct
         seqPosition++;
@@ -274,19 +304,7 @@ void loop() {
         }
       }
       else {
-        Serial.println("finish");
-        int score = seqLength - startSeqLength;
-        lcd.setBacklight(RED);
-        lcd.clear();
-        lcd.home();
-        lcd.print("GAME OVER");
-        lcd.setCursor(0,1);
-        lcd.print("SCORE: ");
-        lcd.print(score);
-        delay(showTime);
-        lcd.setBacklight(WHITE);
-        resetGame();
-        gotoMenu();
+        gameOver();
         return;  // Stop the cycle to stop the state frmo being set to waiting for another guess 
       }
       state = "waiting_for_guess";
