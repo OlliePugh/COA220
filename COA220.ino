@@ -3,6 +3,8 @@
 #include <Adafruit_RGBLCDShield.h>
 #include <utility/Adafruit_MCP23017.h>
 
+
+//define colours
 #define OFF 0x0
 #define RED 0x1
 #define YELLOW 0x3
