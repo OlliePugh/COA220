@@ -48,8 +48,8 @@ class Button {  // a class for containing button methods
     }
 };
 
-struct leaderBoardPosition {
-  char username[3];
+struct leaderboardPosition {
+  char username[4];
   int score;
 };
 
@@ -115,14 +115,16 @@ int D = 1000; // the amount of milliseconds the user has to remember the sequenc
 int seqLength;  // how many moves the sequence is
 int seqPosition = 0;  // this is the index that the player is currently trying to remember
 
-const int leaderBoardSize = 10;
-leaderBoardPosition leaderboard[leaderBoardSize];
+const int leaderboardSize = 10;
+leaderboardPosition leaderboard[leaderboardSize];
 
 int correctAnswers = 0; // stores the users current amount of correct answers, resets when the games is over
 
 unsigned long guessStart; // this will store the millis of a guess start
 unsigned long currentTime; // this will store the current value of millis each loop
 uint8_t guess;  // the users current guess
+
+int leaderboardViewPos = 0;  // min 0 max 8, stores where the user is currently viewing the leaderboard at
 
 String state;
 
@@ -186,23 +188,46 @@ void levelUp() {
   }
 }
 
+void updateLeaderboardView(){
+  lcd.clear();
+  for (int i = leaderboardViewPos; i < leaderboardViewPos + 2; i++){
+    lcd.setCursor(0, i - leaderboardViewPos);
+    String toPrint = "#"+String(i+1)+" ";
+    toPrint += String(leaderboard[i].username) + ": ";
+    toPrint += String(leaderboard[i].score) + " ";
+    lcd.print(toPrint);
+    Serial.println(toPrint);
+    }
+}
+
 void changeState(String newState) {
   if (state == newState) { // if the new state is the same as the old one then return straight away
     return;
   }
 
+  else if (newState == "leaderboard_view"){
+    state = newState;
+    updateLeaderboardView();
+  }
+
+  else if(newState == "leaderboard_awaiting_viewchange_release"){
+    state = newState;
+  }
+  
   else if (newState == "menu") {
     changeState("menu_set_length");
     correctAnswers = 0;  // reset the correct answers
   }
 
   else if (newState == "menu_set_length") {
+    leaderboardViewPos = 0; // reset the view for the leaderboard
     lcd.clear();
     lcd.home();
     lcd.print("START LENGTH:");
     lcd.setCursor(0, 1);
     lcd.print(String(startSeqLength));
     state = newState;
+    delay(300);  // if the user is holding the right button they will not have time to take their finger off the button to change the value in the next menu
   }
 
   else if (newState == "menu_set_guess_time") {
@@ -271,36 +296,48 @@ void gameOver() {
   changeState("menu");  // go back to the menu
 }
 
-void addToLeaderboard(char username[3], int score){  // TODO ENTER INTO THE EEPROM
-  leaderBoardPosition newWinner;
+void addToLeaderboard(char username[4], int score){  // TODO ENTER INTO THE EEPROM
+  username += '\0'; 
+  leaderboardPosition newWinner;
   strcpy(newWinner.username, username);
   newWinner.score = score;
 
-  leaderBoardPosition newLeaderBoard[leaderBoardSize];
+  leaderboardPosition newleaderboard[leaderboardSize];
 
-  for (int i = 0; i < leaderBoardSize; i++){  // This is approach is awful
+  for (int i = 0; i < leaderboardSize; i++){  // This is approach is awful
     if (leaderboard[i].score > newWinner.score){
-      newLeaderBoard[i] = leaderboard[i];
+      newleaderboard[i] = leaderboard[i];
     }
     else if (newWinner.score > leaderboard[i].score){
-      newLeaderBoard[i] = newWinner;
-      for (int j = i+1; j < leaderBoardSize; j++){
-        newLeaderBoard[j] = leaderboard[j-1];
+      newleaderboard[i] = newWinner;
+      for (int j = i+1; j < leaderboardSize; j++){
+        newleaderboard[j] = leaderboard[j-1];
       }
       break;
     }
   }
 
-  for(int i = 0; i < leaderBoardSize; i++){ // find the position of the new leaderboard score
-    leaderboard[i] = newLeaderBoard[i];
+  for(int i = 0; i < leaderboardSize; i++){ // find the position of the new leaderboard score
+    leaderboard[i] = newleaderboard[i];
   } 
+  
+  updateleaderboardInEEPROM();
+  
+}
+
+void updateleaderboardInEEPROM(){
+  int eeAddress = 0;
+  for (int i = 0; i < leaderboardSize; i++) {
+    EEPROM.put(eeAddress, leaderboard[i]);
+    eeAddress += sizeof(leaderboardPosition); // increase the address by the size of leaderboardPosition in bytes
+  }
 }
 
 void resetLeaderboard() {
   int eeAddress = 0;
-  for (int i = 0; i < leaderBoardSize; i++) {
-    EEPROM.put(eeAddress, leaderBoardPosition{"NUL", 0});
-    eeAddress += sizeof(leaderBoardPosition); // increase the address by the size of leaderboardPosition in bytes
+  for (int i = 0; i < leaderboardSize; i++) {
+    EEPROM.put(eeAddress, leaderboardPosition{"NUL\0", 0});
+    eeAddress += sizeof(leaderboardPosition); // increase the address by the size of leaderboardPosition in bytes
   }
 }
 
@@ -310,8 +347,21 @@ void getLeaderboard() {
   {
     EEPROM.get(eeAddress, leaderboard[i]);
 
-    eeAddress += sizeof(leaderBoardPosition);
+    eeAddress += sizeof(leaderboardPosition);
   }
+  if (DEV_MODE){
+    Serial.println("----- Current Leaderboard ----- ");
+  
+    for (int i = 0; i < leaderboardSize; i++) {
+      Serial.print("#" + String(i) +" ");
+      Serial.print(String(leaderboard[i].username));
+      Serial.print(" has a score of ");
+      Serial.println(String(leaderboard[i].score) + " ");
+    }
+  
+    Serial.println("--------------------------------");
+  }
+  
 }
 
 void setup() {
@@ -321,11 +371,7 @@ void setup() {
   lcd.begin(16, 2);
   lcd.setBacklight(WHITE);
   
-  getLeaderboard();
-
-  addToLeaderboard("NAN", 2);
-  addToLeaderboard("YES", 20);
-  addToLeaderboard("BRUH", 18);
+  getLeaderboard();  // fetch the leaderboard from the EEPROM
   
   //Create custom chars for the LCD Screen
 
@@ -336,13 +382,31 @@ void setup() {
 
   seqLength = startSeqLength;
   changeState("menu");
-
 }
 
 void loop() {
   buttons = lcd.readButtons();
   currentTime = millis();
-  if (state == "menu_set_length") {
+  if (state == "leaderboard_view"){
+    if (downButton.pressed() && leaderboardViewPos < 8){
+      leaderboardViewPos++;
+      changeState("leaderboard_awaiting_viewchange_release");
+    }
+    if (upButton.pressed() && leaderboardViewPos > 0){
+      leaderboardViewPos--;
+      changeState("leaderboard_awaiting_viewchange_release");
+    }
+    if (rightButton.pressed()){
+      Serial.println("changed");
+      changeState("menu");
+    }
+  }
+  else if (state == "leaderboard_awaiting_viewchange_release"){
+    if (buttons == 0){
+      changeState("leaderboard_view");
+    }
+  }
+  else if (state == "menu_set_length") {
     if (upButton.pressed() && startSeqLength < 5) {
       startSeqLength++;
       changeState("menu_awaiting_length_release");
@@ -354,6 +418,9 @@ void loop() {
     else if (rightButton.pressed()) {
       seqLength = startSeqLength;
       changeState("menu_set_guess_time");
+    }
+    else if (leftButton.pressed()) {
+      changeState("leaderboard_view");
     }
   }
   else if (state == "menu_awaiting_length_release") {
