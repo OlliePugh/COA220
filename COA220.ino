@@ -1,8 +1,8 @@
 #include <Wire.h>
 #include <TimerOne.h>
+#include <EEPROM.h>
 #include <Adafruit_RGBLCDShield.h>
 #include <utility/Adafruit_MCP23017.h>
-
 
 //define colours
 #define OFF 0x0
@@ -14,38 +14,43 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
-boolean DEV_MODE= true; // this should be false when the product is not in development
+boolean DEV_MODE = true; // this should be false when the product is not in development
 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 uint8_t buttons;
 
 class Button {  // a class for containing button methods
   public:
-    int character;  
+    int character;
     uint8_t button;
     String buttonName;
-    
-    Button (uint8_t b, String n){
+
+    Button (uint8_t b, String n) {
       this->button = b;
       this->buttonName = n;
     }
-    Button(){
-      
+    Button() {
+
     }
 
-    void setChar(int charValue, byte charByte[8]){
+    void setChar(int charValue, byte charByte[8]) {
       lcd.createChar(charValue, charByte);
       this->character = charValue;  // this will be the integer that the custom character will be stored in for the lcd library
     }
-  
-    boolean pressed(){  // returns true if the button is pressed
-      if (button & buttons){
+
+    boolean pressed() { // returns true if the button is pressed
+      if (button & buttons) {
         return true; // if the button is pressed return true
       }
-      else{
+      else {
         return false; // if the button is not pressed return false
       }
     }
+};
+
+struct leaderBoardPosition {
+  char username[3];
+  int score;
 };
 
 // Custom Char bytes for arrows
@@ -99,226 +104,331 @@ Button rightButton (BUTTON_RIGHT, "right");
 Button upButton (BUTTON_UP, "up");
 Button downButton (BUTTON_DOWN, "down");
 
-Button* gameButtons[] = {&leftButton, &rightButton, &upButton, &downButton};  // array of pointers to 
+Button* gameButtons[] = {&leftButton, &rightButton, &upButton, &downButton};  // array of pointers to
 Button* seq[10]; // an array that points to different buttons in the gameButtons array
 
-int startSeqLength = 2;
+int startSeqLength = 2;  // the default value for the starting sequence length
+int guessTime = 2; // how many seconds the user has to make a guess (if = 0 the timer is disabled)
 int m = 2;  // how many different buttons can be used in the sequence
-int guessTime = 2; // how many seconds the user has to make a guess
+int D = 1000; // the amount of milliseconds the user has to remember the sequence
 
 int seqLength;  // how many moves the sequence is
 int seqPosition = 0;  // this is the index that the player is currently trying to remember
 
+const int leaderBoardSize = 10;
+leaderBoardPosition leaderboard[leaderBoardSize];
+
+int correctAnswers = 0; // stores the users current amount of correct answers, resets when the games is over
 
 unsigned long guessStart; // this will store the millis of a guess start
 unsigned long currentTime; // this will store the current value of millis each loop
 uint8_t guess;  // the users current guess
 
-int showTime = 1000;
 String state;
 
-void setRandomPattern(){
-  for (int i = 0; i < seqLength; i++){  // loop through the sequence to set each value
+void setRandomPattern() {
+  for (int i = 0; i < seqLength; i++) { // loop through the sequence to set each value
     int randomNumber = random(0, m); // doesnt include the m value
-    Button* randomButton= gameButtons[randomNumber]; // a pointer to a random button from the gameButtons array
+    Button* randomButton = gameButtons[randomNumber]; // a pointer to a random button from the gameButtons array
     seq[i] = randomButton;
   }
 }
 
-void showSequence(){
+void showSequence() {
   lcd.clear();
   lcd.home();
-  for (int i = 0; i < seqLength; i++){
+  for (int i = 0; i < seqLength; i++) {
     lcd.write(seq[i]->character);
-    if (DEV_MODE){
+    if (DEV_MODE) {
       Serial.print(seq[i]->buttonName + " ");
     }
   }
-  if (DEV_MODE){
-    Serial.println();  
+  if (DEV_MODE) {
+    Serial.println();
   }
-  delay(showTime);
+  delay(D);
   lcd.clear();
 }
 
-boolean makeGuess(){  // SOMETHING ABOUT THESE INDEXES BEING ONE TOO FAR TO THE RIGHT
-  if (seq[seqPosition]->button & guess){ // if the guess is correct
+boolean makeGuess() { // SOMETHING ABOUT THESE INDEXES BEING ONE TOO FAR TO THE RIGHT
+  if (seq[seqPosition]->button & guess) { // if the guess is correct
     guess = 0;
     lcd.setCursor(seqPosition, 0);
     lcd.write(seq[seqPosition]->character);
     return true;
   }
-  else{
+  else {
     guess = 0;
     return false;
   }
 }
 
-void resetGame(){
+void resetGame() {
   seqLength = startSeqLength;
   seqPosition = 0;
   m = 2;
 }
 
-boolean levelUp(){
+void levelUp() {
   seqPosition = 0;
-  if (++seqLength > 10){
-    return false;
+  correctAnswers++;
+  if (seqLength + 1 <= 10) { // ensure that the sequence length does not exceed 10
+    seqLength++;
   }
-  else{
-    lcd.setBacklight(GREEN);
+  lcd.setBacklight(GREEN);
+  lcd.clear();
+  lcd.home();
+  lcd.print("LEVEL UP");
+  delay(D);
+  lcd.setBacklight(WHITE);
+  if (correctAnswers % 3 == 0 && (m + 1 <= 4)) { // every 3 correct answers another characer will be added to set of characters that can be used for the sequence
+    m++;
+  }
+}
+
+void changeState(String newState) {
+  if (state == newState) { // if the new state is the same as the old one then return straight away
+    return;
+  }
+
+  else if (newState == "menu") {
+    changeState("menu_set_length");
+    correctAnswers = 0;  // reset the correct answers
+  }
+
+  else if (newState == "menu_set_length") {
     lcd.clear();
     lcd.home();
-    lcd.print("LEVEL UP");
-    delay(showTime);
-    lcd.setBacklight(WHITE);
-    if (seqLength % 3 == 0 && (m+1 <= 4)){
-      m++;
-    }
-    return true;
+    lcd.print("START LENGTH:");
+    lcd.setCursor(0, 1);
+    lcd.print(String(startSeqLength));
+    state = newState;
+  }
+
+  else if (newState == "menu_set_guess_time") {
+    lcd.clear();
+    lcd.home();
+    lcd.print("TIMER:");
+    lcd.setCursor(0, 1);
+    lcd.print(String(guessTime));
+    state = newState;
+    delay(300); // if the user is holding the right button it would instantly send them to start the game
+  }
+
+  else if (newState == "menu_awaiting_length_release") {
+    state = newState;
+  }
+
+  else if (newState == "menu_awaiting_guess_time_release") {
+    state = newState;
+  }
+
+  else if (newState == "show_next_level") {
+    state = newState;
+  }
+
+  else if (newState == "waiting_for_guess") {
+    state = newState;
+  }
+
+  else if (newState == "waiting_for_button_release") {
+    state = newState;
+  }
+
+  else {
+    reportUnknownState(newState);
   }
 }
 
-void gotoMenu(){
-  state = "menu_set_length";
+void reportUnknownState(String stateName) {
+  Serial.println("Unknown state: " + stateName);
   lcd.clear();
   lcd.home();
-  lcd.print("START LENGTH:");
-  lcd.setCursor(0,1);
-  lcd.print(String(startSeqLength));
+  lcd.print("ERROR");
+  lcd.setCursor(0, 1);
+  lcd.print("Check Serial");
+  exit(0);
 }
 
-void win(){
-  lcd.clear();
-  lcd.home();
-  lcd.print("YOU WIN");
-  for (int i = 0; i < 3; i++){ // cycle through the colours
-    lcd.setBacklight(RED);
-    delay(50);
-    lcd.setBacklight(YELLOW);
-    delay(50);
-    lcd.setBacklight(GREEN);
-    delay(50);
-    lcd.setBacklight(TEAL);
-    delay(50);
-    lcd.setBacklight(BLUE);
-    delay(50);
-    lcd.setBacklight(VIOLET);
-    delay(50);
-    lcd.setBacklight(WHITE); 
+void gameOver() {
+  int score = correctAnswers * startSeqLength;  // the larger the startSequence number the greater the score
+  if (guessTime != 0) {
+    score = (int) (score / (sqrt(guessTime)));  // divide the score by amount of time the user had available to guess then truncate it to keep int type (higher time gives a worse score)
   }
-}
-
-void gameOver(){
-  Serial.println("finish");
-  int score = seqLength - startSeqLength;
+  else {
+    score = 0;
+  }
   lcd.setBacklight(RED);
   lcd.clear();
   lcd.home();
   lcd.print("GAME OVER");
-  lcd.setCursor(0,1);
+  lcd.setCursor(0, 1);
   lcd.print("SCORE: ");
   lcd.print(score);
-  delay(showTime);
+  delay(D);
   lcd.setBacklight(WHITE);
   resetGame();  // reset all the values
-  gotoMenu();  // go back to the menu
+  changeState("menu");  // go back to the menu
+}
+
+void addToLeaderboard(char username[3], int score){  // TODO ENTER INTO THE EEPROM
+  leaderBoardPosition newWinner;
+  strcpy(newWinner.username, username);
+  newWinner.score = score;
+
+  leaderBoardPosition newLeaderBoard[leaderBoardSize];
+
+  for (int i = 0; i < leaderBoardSize; i++){  // This is approach is awful
+    if (leaderboard[i].score > newWinner.score){
+      newLeaderBoard[i] = leaderboard[i];
+    }
+    else if (newWinner.score > leaderboard[i].score){
+      newLeaderBoard[i] = newWinner;
+      for (int j = i+1; j < leaderBoardSize; j++){
+        newLeaderBoard[j] = leaderboard[j-1];
+      }
+      break;
+    }
+  }
+
+  for(int i = 0; i < leaderBoardSize; i++){ // find the position of the new leaderboard score
+    leaderboard[i] = newLeaderBoard[i];
+  } 
+}
+
+void resetLeaderboard() {
+  int eeAddress = 0;
+  for (int i = 0; i < leaderBoardSize; i++) {
+    EEPROM.put(eeAddress, leaderBoardPosition{"NUL", 0});
+    eeAddress += sizeof(leaderBoardPosition); // increase the address by the size of leaderboardPosition in bytes
+  }
+}
+
+void getLeaderboard() {
+  int eeAddress = 0;
+  for (int i = 0; i < sizeof(leaderboard) / sizeof(leaderboard[0]); i++)
+  {
+    EEPROM.get(eeAddress, leaderboard[i]);
+
+    eeAddress += sizeof(leaderBoardPosition);
+  }
 }
 
 void setup() {
   randomSeed(analogRead(0));
   Serial.begin(9600);
-  
+
   lcd.begin(16, 2);
   lcd.setBacklight(WHITE);
-
-  //Create custom chars for the LCD Screen
   
-  leftButton.setChar(0, leftArrow); 
+  getLeaderboard();
+
+  addToLeaderboard("NAN", 2);
+  addToLeaderboard("YES", 20);
+  addToLeaderboard("BRUH", 18);
+  
+  //Create custom chars for the LCD Screen
+
+  leftButton.setChar(0, leftArrow);
   rightButton.setChar(1, rightArrow);
   upButton.setChar(2, upArrow);
   downButton.setChar(3, downArrow);
 
   seqLength = startSeqLength;
-  gotoMenu();
-  
+  changeState("menu");
+
 }
 
 void loop() {
   buttons = lcd.readButtons();
   currentTime = millis();
- // Serial.println(currentTime);
-  if (state == "menu_set_length"){
-    if (upButton.pressed() && startSeqLength < 5){
+  if (state == "menu_set_length") {
+    if (upButton.pressed() && startSeqLength < 5) {
       startSeqLength++;
-      state = "menu_awaiting_length_release";
+      changeState("menu_awaiting_length_release");
     }
-    else if (downButton.pressed() && startSeqLength > 1){
+    else if (downButton.pressed() && startSeqLength > 1) {
       startSeqLength--;
-      state = "menu_awaiting_length_release";
+      changeState("menu_awaiting_length_release");
     }
-    else if (rightButton.pressed()){
+    else if (rightButton.pressed()) {
       seqLength = startSeqLength;
-      state = "show_next_level";
+      changeState("menu_set_guess_time");
     }
   }
-  else if (state == "menu_awaiting_length_release"){
-    if (buttons == 0){  // if the user has let go of the button
-      lcd.setCursor(0,1);
+  else if (state == "menu_awaiting_length_release") {
+    if (buttons == 0) { // if the user has let go of the button
+      lcd.setCursor(0, 1);
       lcd.print("  ");
-      lcd.setCursor(0,1);
+      lcd.setCursor(0, 1);
       lcd.print(String(startSeqLength));
-      state = "menu_set_length"; 
+      changeState("menu_set_length"); // change to the menu to change the timer length
     }
   }
-  else if (state == "show_next_level"){
+  else if (state == "menu_set_guess_time") {
+    if (upButton.pressed() && guessTime < 10) {
+      guessTime++;
+      changeState("menu_awaiting_guess_time_release");
+    }
+    else if (downButton.pressed() && guessTime > 0) {
+      guessTime--;
+      changeState("menu_awaiting_guess_time_release");
+    }
+    else if (rightButton.pressed()) {
+      changeState("show_next_level"); // start the game
+    }
+
+    else if (leftButton.pressed()) {
+      changeState("menu_set_length"); // go back to setting the start sequence length
+    }
+  }
+  else if (state == "menu_awaiting_guess_time_release") {
+    if (buttons == 0) { // if the user has let go of the button
+      lcd.setCursor(0, 1);
+      lcd.print("  ");
+      lcd.setCursor(0, 1);
+      lcd.print(String(startSeqLength));
+      changeState("menu_set_guess_time");
+    }
+  }
+  else if (state == "show_next_level") {
     setRandomPattern();  // generate the first random patern
     showSequence();
-    state = "waiting_for_guess";
+    changeState("waiting_for_guess");
     guessStart = millis();  // start the timer
   }
-  else if (state == "waiting_for_guess"){
-    Serial.println(currentTime - guessStart);
-    if (currentTime - guessStart >= ((guessTime)*1000)){
+  else if (state == "waiting_for_guess") {
+    if (guessTime != 0) {
+      lcd.setCursor(12, 1);
+      lcd.print((( (float) guessStart - (float) currentTime) / 1000) + guessTime);
+    }
+    if (currentTime - guessStart >= ((guessTime) * 1000) && guessTime != 0) {
       gameOver();
     }
-    if (buttons >1){ // a button that isnt select has been pressed
+    if (buttons > 1) { // a button that isnt select has been pressed
       guess = buttons;
-      state = "waiting_for_button_release";
+      changeState("waiting_for_button_release");
     }
-  } 
-  else if (state == "waiting_for_button_release"){
+  }
+  else if (state == "waiting_for_button_release") {
     guessStart = millis();  // reset the timer
-    if (buttons == 0){
-      if (makeGuess()){ // if the guess was correct
+    if (buttons == 0) {
+      if (makeGuess()) { // if the guess was correct
         seqPosition++;
-        if (seqPosition > seqLength-1){ // the user has entered all correctly, level up
-          if(levelUp()){
-            state = "show_next_level"; 
-            return;
-          }
-          else{
-            win();
-            resetGame();
-            gotoMenu();
-            return;
-          }
+        if (seqPosition > seqLength - 1) { // the user has entered all correctly, level up
+          levelUp();
+          changeState("show_next_level");
+          return;
         }
       }
       else {
         gameOver();
-        return;  // Stop the cycle to stop the state frmo being set to waiting for another guess 
+        return;  // Stop the cycle to stop the state frmo being set to waiting for another guess
       }
-      state = "waiting_for_guess";
+      changeState("waiting_for_guess");
     }
   }
-  else{
-    Serial.println("Unknown state: " + state);
-    lcd.clear();
-    lcd.home();
-    lcd.print("ERROR");
-    lcd.setCursor(0,1);
-    lcd.print("Check Serial");
-    exit(0); 
+  else {
+    reportUnknownState(state);
   }
 }
