@@ -99,6 +99,17 @@ byte leftArrow[] = {
   B00000
 };
 
+byte underscore[] = {
+  B11111,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
+
 Button leftButton (BUTTON_LEFT, "left");
 Button rightButton (BUTTON_RIGHT, "right");
 Button upButton (BUTTON_UP, "up");
@@ -111,12 +122,19 @@ int startSeqLength = 2;  // the default value for the starting sequence length
 int guessTime = 2; // how many seconds the user has to make a guess (if = 0 the timer is disabled)
 int m = 2;  // how many different buttons can be used in the sequence
 int D = 1000; // the amount of milliseconds the user has to remember the sequence
+int score = 0;
 
 int seqLength;  // how many moves the sequence is
 int seqPosition = 0;  // this is the index that the player is currently trying to remember
 
 const int leaderboardSize = 10;
 leaderboardPosition leaderboard[leaderboardSize];
+
+const char firstAlphabetLetter = 65; // Capital A as ASCII respresentation
+const char lastAlphabetLetter = 90; // Capital Z as ASCII respresentation
+
+char username[4] = "AAA";
+int leaderboardCursor = 0;
 
 int correctAnswers = 0; // stores the users current amount of correct answers, resets when the games is over
 
@@ -196,8 +214,18 @@ void updateLeaderboardView(){
     toPrint += String(leaderboard[i].username) + ": ";
     toPrint += String(leaderboard[i].score) + " ";
     lcd.print(toPrint);
-    Serial.println(toPrint);
-    }
+  }
+  if (leaderboardViewPos != 0){
+    lcd.setCursor(14,0);
+    lcd.write(upButton.character);
+  }
+  if (leaderboardViewPos != 8){
+    lcd.setCursor(14,1);
+    lcd.write(downButton.character);
+  }
+
+  lcd.setCursor(15,0);
+  lcd.write(rightButton.character);
 }
 
 void changeState(String newState) {
@@ -215,16 +243,22 @@ void changeState(String newState) {
   }
   
   else if (newState == "menu") {
+    strcpy(username, "AAA"); // reset the username stored
+    leaderboardCursor = 0;
     changeState("menu_set_length");
     correctAnswers = 0;  // reset the correct answers
+    score = 0;
   }
 
   else if (newState == "menu_set_length") {
     leaderboardViewPos = 0; // reset the view for the leaderboard
     lcd.clear();
     lcd.home();
+    lcd.write(leftButton.character);
     lcd.print("START LENGTH:");
-    lcd.setCursor(0, 1);
+    lcd.setCursor(15,0);
+    lcd.write(rightButton.character);
+    lcd.setCursor(7, 1);
     lcd.print(String(startSeqLength));
     state = newState;
     delay(300);  // if the user is holding the right button they will not have time to take their finger off the button to change the value in the next menu
@@ -233,8 +267,11 @@ void changeState(String newState) {
   else if (newState == "menu_set_guess_time") {
     lcd.clear();
     lcd.home();
+    lcd.write(leftButton.character);
     lcd.print("TIMER:");
-    lcd.setCursor(0, 1);
+    lcd.setCursor(15,0);
+    lcd.write(rightButton.character);
+    lcd.setCursor(7, 1);
     lcd.print(String(guessTime));
     state = newState;
     delay(300); // if the user is holding the right button it would instantly send them to start the game
@@ -260,6 +297,21 @@ void changeState(String newState) {
     state = newState;
   }
 
+  else if (newState == "leaderboard_username_entry"){
+    lcd.clear();
+    lcd.print(username);
+    lcd.print(" HIGH SCORE");
+    lcd.setCursor(15,0);
+    lcd.write(rightButton.character);
+    lcd.setCursor(leaderboardCursor, 1);
+    lcd.write(4);
+    state = newState;
+  }
+
+  else if (newState == "leaderboard_await_username_change_release"){
+    state = newState;
+  }
+
   else {
     reportUnknownState(newState);
   }
@@ -276,7 +328,7 @@ void reportUnknownState(String stateName) {
 }
 
 void gameOver() {
-  int score = correctAnswers * startSeqLength;  // the larger the startSequence number the greater the score
+  score = correctAnswers * startSeqLength;  // the larger the startSequence number the greater the score
   if (guessTime != 0) {
     score = (int) (score / (sqrt(guessTime)));  // divide the score by amount of time the user had available to guess then truncate it to keep int type (higher time gives a worse score)
   }
@@ -293,11 +345,25 @@ void gameOver() {
   delay(D);
   lcd.setBacklight(WHITE);
   resetGame();  // reset all the values
-  changeState("menu");  // go back to the menu
+  if (isHighScore(score)){
+    changeState("leaderboard_username_entry");  // go back to the menu
+  }
+  else{
+    changeState("menu");
+  }
 }
 
-void addToLeaderboard(char username[4], int score){  // TODO ENTER INTO THE EEPROM
-  username += '\0'; 
+bool isHighScore(int score){
+  if (score <= leaderboard[leaderboardSize-1].score){ // the users score is not high enough to be on the leaderboard
+    return false;
+  }
+  else{
+    return true;
+  }
+}
+
+void addToLeaderboard(char username[4], int score){
+  //username += '\0'; 
   leaderboardPosition newWinner;
   strcpy(newWinner.username, username);
   newWinner.score = score;
@@ -379,6 +445,7 @@ void setup() {
   rightButton.setChar(1, rightArrow);
   upButton.setChar(2, upArrow);
   downButton.setChar(3, downArrow);
+  lcd.createChar(4, underscore);
 
   seqLength = startSeqLength;
   changeState("menu");
@@ -493,6 +560,42 @@ void loop() {
         return;  // Stop the cycle to stop the state frmo being set to waiting for another guess
       }
       changeState("waiting_for_guess");
+    }
+  }
+
+  else if (state == "leaderboard_username_entry"){
+    if (downButton.pressed()){
+      char newChar = username[leaderboardCursor]+1;
+      if (newChar > lastAlphabetLetter){
+        newChar = firstAlphabetLetter;
+      }
+      username[leaderboardCursor] =  newChar;
+      changeState("leaderboard_await_username_change_release");
+    }
+    else if (upButton.pressed()){
+      char newChar = username[leaderboardCursor]-1;
+      if (newChar < firstAlphabetLetter){
+        newChar = lastAlphabetLetter;
+      }
+      username[leaderboardCursor] =  newChar;
+      changeState("leaderboard_await_username_change_release");
+    }
+    else if (rightButton.pressed() && leaderboardCursor < 2){
+      leaderboardCursor++;
+      changeState("leaderboard_await_username_change_release");
+    }
+    else if (rightButton.pressed() && leaderboardCursor == 2){
+      addToLeaderboard(username, score);
+      changeState("menu");
+    }
+    else if (leftButton.pressed() && leaderboardCursor > 0){
+      leaderboardCursor--;
+      changeState("leaderboard_await_username_change_release");
+    }
+  }
+  else if (state == "leaderboard_await_username_change_release"){
+    if (buttons == 0){
+      changeState("leaderboard_username_entry");
     }
   }
   else {
