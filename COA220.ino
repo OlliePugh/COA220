@@ -405,6 +405,7 @@ void resetLeaderboard() {
     EEPROM.put(eeAddress, leaderboardPosition{"NUL\0", 0});
     eeAddress += sizeof(leaderboardPosition); // increase the address by the size of leaderboardPosition in bytes
   }
+  getLeaderboard(); // get the new leaderboard from the eeprom
 }
 
 void getLeaderboard() {
