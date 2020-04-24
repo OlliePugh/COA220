@@ -2,6 +2,8 @@
 
 A simple memory game for an arduino (Only tested on an UNO) with an [Adafruit RGB Shield](https://www.adafruit.com/product/714) attached.
 
+I have used the [Adafruit RGB LCD Shield Library](https://github.com/adafruit/Adafruit-RGB-LCD-Shield-Library) to control the RGB Shield.
+
 ## Instructions
 
 ### Reset / start leaderboard 
