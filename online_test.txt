@@ -1,0 +1,74 @@
+# INS: Instructions
+
+------ON FIRST RUN / TO RESET LEADERBOARD------
+		
+		[ IMPORTANT ]
+
+* If it is the first time launching the game on the device you will need to set the leaderboard. To do this you must:
+1) Go to the 'Set length menu' 
+2) Hold the Up button
+3) Click the select button
+* Now the leaderboard should be initialised and you can check this by pressing the left button to navigate to the leaderboard
+
+-----------------------------------------------
+For normal use:
+
+* Use the up and down buttons to select the length of the first pattern
+* Press right to go to the next menu
+* Use the up and down buttons to select the amount seconds you will have to enter an arrow
+* Observe and remember the pattern and wait for the pattern to disappear
+* Press the arrows in order that they were displayed in the pattern
+* As the game goes on the longer the length of the pattern will be and more types of buttons will be added to the pattern
+
+If you enter an incorrect arrow the game will end, if your score was one of the top 10 recored on the device then you will be prompted to enter a 3 digit long name
+
+* Use the up and down keys to choose my initials and use the right and left keys to navigate the initial currently being changed
+* Press the right button to save your username
+
+To view the leaderboard
+
+* Go to the furthest left menu and use the up and down buttons to navigate the leaderboard
+
+# MFS: Features of the minimal feature set
+
+Indicate by deleting YES or NO to the questions below.
+If partially implemented, describe this by deleting *YES/NO* and
+writing what does work.  Do not adjust any other text in this section.
+
+* Sequences are displayed on the screen as specified: *YES*
+* Backlight flashes (only when correct): *YES*
+* Incorrect answer leads to game over: *YES*
+* Successive stages get more difficult: *YES*
+* Game supports *N* up to 10: *YES*
+* Game supports *M* of size 4: *YES*
+* A menu is present: *YES*
+* Size of *M* can be changed: *YES*
+* *N* can be changed: *YES*
+* Message when wrong printed: *YES*
+
+# OAF: Optional and additional features
+
+* Time limit T which can be set in the menu
+* Displaying T as a countdown
+* Selectable difficulty which affects how the users score is calculated
+* Custom characters which represent arrows and a line at the top of the character to represent a cursor for the line above (Used in the leaderboard username entry page)
+* Suitable displays for winning and losing
+* A high score table written to the EEPROM which can be viewed in the menu
+* A way for the winner of the high score to enter 3 initials
+
+# TPL: Test plan
+
+1. Observer menu
+2. Press up button until start length is 4
+3. Press right to go the next menu
+4. Press right as I am happy with the default time limit
+5. Observe the pattern on the screen and wait for it to disappear
+6. Enter the pattern into the device in the same order that it was displayed
+7. Repeat until game over
+8. Observe the screen as it says I got a highscore
+9. Change the first letter to an O using the up and down buttons
+10. Press the right button to navigate to the next letter
+11. Repeat until all three letters are as desired
+12. Navigate to the furtherst right letter and press the right button again to be taken back to the menu
+13. Press the left button to view my highscore in the leaderboard
+14. Press the right button to navigate back to the game start menu

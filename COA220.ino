@@ -335,7 +335,6 @@ void gameOver() {
   else {
     score = 0;
   }
-  lcd.setBacklight(RED);
   lcd.clear();
   lcd.home();
   lcd.print("GAME OVER");
