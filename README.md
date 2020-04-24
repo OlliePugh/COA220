@@ -1,4 +1,4 @@
-r# Memory Game
+# Memory Game
 
 A simple memory game for an arduino (Only tested on an UNO) with an [Adafruit RGB Shield](https://www.adafruit.com/product/714) attached.
 
