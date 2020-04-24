@@ -1,4 +1,4 @@
-# Memory Game
+r# Memory Game
 
 A simple memory game for an arduino (Only tested on an UNO) with an [Adafruit RGB Shield](https://www.adafruit.com/product/714) attached.
 
@@ -25,7 +25,7 @@ I have used the [Adafruit RGB LCD Shield Library](https://github.com/adafruit/Ad
 * Press the arrows in order that they were displayed in the pattern
 * As the game goes on the longer the length of the pattern will be and more types of buttons will be added to the pattern
 
-If you enter an incorrect arrow the game will end, if your score was one of the top 10 recored on the device then you will be prompted to enter a 3 digit long name
+If you enter an incorrect arrow the game will end, if your score was one of the top 10 recorded on the device then you will be prompted to enter a 3 digit long name
 
 * Use the up and down keys to choose my initials and use the right and left keys to navigate the initial currently being changed
 * Press the right button to save your username
