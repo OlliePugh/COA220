@@ -405,7 +405,7 @@ void resetLeaderboard() {
     EEPROM.put(eeAddress, leaderboardPosition{"NUL\0", 0});
     eeAddress += sizeof(leaderboardPosition); // increase the address by the size of leaderboardPosition in bytes
   }
-  getLeaderboard(); // get the new leaderboard from the eeprom
+  getLeaderboard();
 }
 
 void getLeaderboard() {
@@ -465,7 +465,6 @@ void loop() {
       changeState("leaderboard_awaiting_viewchange_release");
     }
     if (rightButton.pressed()){
-      Serial.println("changed");
       changeState("menu");
     }
   }
@@ -492,6 +491,9 @@ void loop() {
     }
   }
   else if (state == "menu_awaiting_length_release") {
+    if (upButton.pressed() && (buttons & BUTTON_SELECT)){
+      resetLeaderboard();
+    }
     if (buttons == 0) { // if the user has let go of the button
       lcd.setCursor(0, 1);
       lcd.print("  ");
